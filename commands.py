@@ -44,11 +44,11 @@ def setup_commands(bot: commands.Bot, ai_service, tracked_threads_manager):
                 temp_template = BOT_TEMPLATE.copy()
                 temp_template.append({
                     'role': 'user',
-                    'parts': [f"Forget what I said earlier! You are {persona}"]
+                    'parts': [{'text': f"Forget what I said earlier! You are {persona}"}]
                 })
                 temp_template.append({
                     'role': 'model',
-                    'parts': ["Ok!"]
+                    'parts': [{'text': "Ok!"}]
                 })
                 ai_service.reset_channel_history(channel_id, temp_template)
                 ChatDataManager.save_chat_history(channel_id, ai_service.get_history(channel_id))
