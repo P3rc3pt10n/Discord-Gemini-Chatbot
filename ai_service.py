@@ -4,7 +4,8 @@ Handles chat session management and response generation.
 """
 import traceback
 from typing import Dict, List, Any, Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from settings import (
     GOOGLE_AI_KEY,
     TEXT_GENERATION_CONFIG,
@@ -19,13 +20,21 @@ class AIService:
     
     def __init__(self):
         """Initialize the AI service with configuration."""
-        genai.configure(api_key=GOOGLE_AI_KEY)  # type: ignore
-        self.model = genai.GenerativeModel(  # type: ignore
-            model_name="gemini-3-flash-preview",
-            generation_config=TEXT_GENERATION_CONFIG,  # type: ignore
-            safety_settings=SAFETY_SETTINGS
+        self.client = genai.Client(api_key=GOOGLE_AI_KEY)
+        self.model_name = "gemini-3-flash-preview"
+        self.config = types.GenerateContentConfig(
+            **TEXT_GENERATION_CONFIG,
+            safety_settings=[types.SafetySetting(**s) for s in SAFETY_SETTINGS] or None
         )
         self.message_history: Dict[int, Any] = {}
+    
+    def _create_chat(self, history: List[Any]) -> Any:
+        """Create a new async chat session seeded with the given history."""
+        return self.client.aio.chats.create(
+            model=self.model_name,
+            config=self.config,
+            history=history
+        )
     
     def load_history(self, history_data: Dict[int, List[Dict[str, Any]]]) -> None:
         """
@@ -35,7 +44,7 @@ class AIService:
             history_data: Dictionary mapping channel IDs to chat histories
         """
         for channel_id, history in history_data.items():
-            self.message_history[channel_id] = self.model.start_chat(history=history)  # type: ignore
+            self.message_history[channel_id] = self._create_chat(history)
     
     async def generate_response(self, channel_id: int, attachments: List[Dict[str, Any]], text: str) -> str:
         """
@@ -55,24 +64,32 @@ class AIService:
         response: Optional[Any] = None
         try:
             # Prepare prompt parts
-            prompt_parts: List[Any] = attachments.copy()
+            # Attachments are {"mime_type", "data"} dicts; the new SDK needs Part objects
+            prompt_parts: List[Any] = [
+                types.Part.from_bytes(data=a["data"], mime_type=a["mime_type"])
+                for a in attachments
+            ]
             prompt_parts.append(text)
             
             # Initialize chat session if not exists
             if channel_id not in self.message_history:
-                self.message_history[channel_id] = self.model.start_chat(history=BOT_TEMPLATE)
+                self.message_history[channel_id] = self._create_chat(BOT_TEMPLATE)
             
             # Send message to AI
-            response = await self.message_history[channel_id].send_message_async(prompt_parts)
+            response = await self.message_history[channel_id].send_message(prompt_parts)
             return response.text if response else ""
             
         except Exception as e:
             # Log detailed error information for debugging
             try:
-                history_info = str(self.message_history[channel_id].history)
+                history_info = str(self.message_history[channel_id].get_history())
                 candidates = str(response.candidates) if response else "N/A"
-                parts = str(response.parts) if response else "N/A"
-                prompt_feedbacks = str(response.prompt_feedbacks) if response else "N/A"
+                parts = (
+                    str(response.candidates[0].content.parts)
+                    if response and response.candidates and response.candidates[0].content
+                    else "N/A"
+                )
+                prompt_feedbacks = str(response.prompt_feedback) if response else "N/A"
             except:
                 history_info = "N/A"
                 candidates = "N/A"
@@ -100,7 +117,7 @@ class AIService:
         if custom_template is None:
             custom_template = BOT_TEMPLATE
         
-        self.message_history[channel_id] = self.model.start_chat(history=custom_template)  # type: ignore
+        self.message_history[channel_id] = self._create_chat(custom_template)
     
     def delete_channel_history(self, channel_id: int) -> None:
         """
@@ -123,5 +140,5 @@ class AIService:
             The chat history list
         """
         if channel_id in self.message_history:
-            return self.message_history[channel_id].history
+            return self.message_history[channel_id].get_history()
         return []

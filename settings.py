@@ -44,10 +44,10 @@ SAFETY_SETTINGS = [
 
 # Bot personality/system prompt template
 BOT_TEMPLATE = [
-    # {'role':'user','parts': ["Hi!"]},
-    # {'role':'model','parts': ["Hello! I am a Discord bot!"]},
-    # {'role':'user','parts': ["Please give short and concise answers!"]},
-    # {'role':'model','parts': ["I will try my best!"]},
+    # {'role':'user','parts': [{'text': "Hi!"}]},
+    # {'role':'model','parts': [{'text': "Hello! I am a Discord bot!"}]},
+    # {'role':'user','parts': [{'text': "Please give short and concise answers!"}]},
+    # {'role':'model','parts': [{'text': "I will try my best!"}]},
 ]
 
 # Message splitting configuration
