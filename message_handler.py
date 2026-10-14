@@ -80,6 +80,10 @@ def should_respond_to_message(message: Message) -> bool:
     Returns:
         True if bot should respond
     """
+    # Ignore all bot-authored messages (including our own) to prevent reply loops
+    if message.author.bot:
+        return False
+    
     # Don't respond to own messages
     if message.guild and message.guild.me and message.author == message.guild.me:
         return False
@@ -169,6 +173,10 @@ async def handle_message(message: Message, ai_service, storage_manager) -> None:
     except Exception as e:
         print(f"Error: {e}")
         print(traceback.format_exc())
+        
+        # Defensive: never post error replies in response to bot-authored messages
+        if message.author.bot:
+            return
         
         # Handle specific error codes
         if hasattr(e, 'code') and getattr(e, 'code', None) == 50035:
